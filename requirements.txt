@@ -14,3 +14,4 @@ google-generativeai
 PyMuPDF
 pillow
 python-dot.env
+matplotlib
