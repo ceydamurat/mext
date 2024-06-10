@@ -1,61 +1,20 @@
 import os
 import io
-import google.generativeai as genai
 import streamlit as st
+import google.generativeai as genai
 from dotenv import load_dotenv
 from PIL import Image
 from PyPDF2 import PdfReader
 import fitz  # this is pymupdf
 
-load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+st.set_page_config(page_title="ATS Sistemi",
+                   page_icon=":robot:",
+                   initial_sidebar_state="expanded")
 
-@st.cache_resource
-def get_gemini_response(prompt):
-    # Modelin Ayar Kısmı
-    generation_config = {
-        "temperature": 0.9,
-        "top_p": 0.90,
-        "top_k": 64,
-        "max_output_tokens": 18192,
-        "response_mime_type": "text/plain",
-    }
+st.header("Uygulama v1")
 
-    safety_settings = [
-        {
-            "category": "HARM_CATEGORY_HARASSMENT",
-            "threshold": "BLOCK_NONE",
-        },
-        {
-            "category": "HARM_CATEGORY_HATE_SPEECH",
-            "threshold": "BLOCK_MEDIUM_AND_ABOVE",
-        },
-        {
-            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            "threshold": "BLOCK_MEDIUM_AND_ABOVE",
-        },
-        {
-            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-            "threshold": "BLOCK_MEDIUM_AND_ABOVE",
-        },
-    ]
-
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest",
-        safety_settings=safety_settings,
-        generation_config=generation_config,
-    )
-
-    prompt_token_count = model.count_tokens(prompt)
-
-    response = model.generate_content(prompt)
-
-    st.markdown(response.text)
-
-    response_token_count = model.count_tokens(response.text)
-
-    return response, prompt_token_count, response_token_count
+genai.configure(api_key= "AIzaSyAmXC386mweCOOW6NgF496s24I1GMNGifQ")
 
 
 @st.cache_resource
@@ -84,128 +43,100 @@ def read_pdf_2(file_path):
         images.append(img)
     return images
 
+@st.cache_resource
+def get_gemini_response(prompt):
+    safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_LOW_AND_ABOVE",
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE",
+            },
+        ]
 
-st.set_page_config(page_title="ATS Sistemi",
-                   page_icon=":robot:",
-                   initial_sidebar_state="expanded")
 
-st.sidebar.header("ATS Sistemimize Hoşgeldiniz")
+    generation_config = {
+            "temperature": 0.4,
+            "top_p": 0.95,
+            "top_k": 64,
+            "max_output_tokens": 18192,
+            "response_mime_type": "text/plain",
+        }
 
-departman = st.selectbox("Lütfen Meslek Grubu Seçiniz", ["İnsan Kaynakları",
-                                                         "Muhasebe",
-                                                         "Yazılım Geliştirici",
-                                                         "Satış",
-                                                         "Reklamcılık",
-                                                         "Pazarlama"])
 
-deneyim_süresi = st.slider(label="Toplam istenilen deneyim aralığı", min_value=1, max_value=10)
+    model = genai.GenerativeModel(
+        safety_settings = safety_settings,
+        generation_config = generation_config,
+        model_name ="gemini-1.5-flash-latest")
 
-genre = st.sidebar.radio(
-    "Döküman uzantınızı seçin!",
-    ["PDF", "None PDF File"])
+    prompt_token_count = model.count_tokens(prompt)
+
+    response = model.generate_content(prompt).text
+
+    response_token_count = model.count_token(response)
+
+    total_token_count = model.count_token(response)
+    total_token_count = int(total_token_count)
+
+    return response, total_token_count
+
+
+
+
+
+st.sidebar.header("ATS v2 Hoşgeldiniz")
+
+deneyim_suresi = st.number_input(label = "Deneyim süresi", min_value=0,max_value = 15, value=2)
+
+
+#st.file
+
+user_input  = st.text_input("lütfen sorgunuzu beliritniz:")
+
+prompt = (f"""
+Sen 10 yıllık tecrübeli bir İk uzmanısın.Eline gelen CV örenğindeki iş ilanı için minimum 5 yıl deneyimli aday aranıyor. Gönderilen CV örneğindeki adayın tecrübe süresi {deneyim_suresi} yıldır.
+         """)
+
+genre = st.sidebar.radio("Döküman uzantınızı seçin", ["PDF"])
 
 if genre == "PDF":
 
-    yüklenen_pdf_dosyası = st.sidebar.file_uploader("CV Dosyası", type=["pdf"], accept_multiple_files=False)
+    yuklenen_dosya = st.sidebar.file_uploader("PDF doayasını yükleyin", type =["pdf"])
 
-    if yüklenen_pdf_dosyası is not None:
+    if yuklenen_dosya is not None
+        pdf_text = read_pdf(yuklenen_dosya)
+        st.sidebar.image(pdf_text)
 
-        on = st.sidebar.toggle("Text Hali")
+        with open("temp.pdf", "wb") as f:
+            f.write(yuklenen_dosya.getbuffer())
+        images = read_pdf_2("temp.pdf")
 
-        if on:
-            pdf_text = read_pdf(yüklenen_pdf_dosyası)
-            st.sidebar.write(pdf_text)
+        prompt = images[
+            0], f"""You are an experienced Human Resources Specialist. Staff will be recruited for {departman}. 
+                I want you to review the CV sample in the image and comment
+                You should pay attention to some points when commenting:
+                    - Check whether the uploaded image is a CV, if the uploaded image is not a CV, give a warning message saying "Please upload a CV sample".
+                    - Since the needs of each department are different, evaluate the compatibility between the specified department and the uploaded CV.
+                    - Minimum required experince is must be 5 years. The users'experince time is {deneyim_süresi}year. If it is less then {deneyim_süresi} years, give info about it.
+                    - Give me the percentage of  match if the resume matches the job description.
+                    - After percentage, highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.
+                    - Final response should be in Markdown format, style is up to you, i count on you.
 
-            prompt = pdf_text + f"""You are an experienced Human Resources Specialist. Staff will be recruited for {departman}. 
-                    I want you to review the CV sample in the image and comment
-
-                    You should pay attention to some points when commenting:
-                        - Check whether the uploaded text is a CV, if the uploaded text is not a CV, give a warning message saying "Please upload a CV sample".
-                        - Since the needs of each department are different, evaluate the compatibility between the specified department and the uploaded CV.
-                        - Minimum required experince is must be 5 years. The users'experince time is {deneyim_süresi}year. If it is less then {deneyim_süresi} years, give info about it.
-                        - Give me the percentage of  match if the resume matches the job description.
-                        - After percentage, highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.
-                        - Final response should be in Markdown format, style is up to you, i count on you.
-                        - Output must be in Turkish, other languages are not acceptable.
-                        """
-
-            çalıştır_butonu = st.sidebar.button("Çalıştır", key="text_pdf_button")
-
-            if çalıştır_butonu:
-                response, prompt_token_count, response_token_count = get_gemini_response(prompt)
-
-                st.markdown(response.text)
+                    """
 
 
 
+if st.button("Üret"):
 
-        else:
-            with open("temp.pdf", "wb") as f:
-                f.write(yüklenen_pdf_dosyası.getbuffer())
-            images = read_pdf_2("temp.pdf")
-
-            prompt = images[
-                0], f"""You are an experienced Human Resources Specialist. Staff will be recruited for {departman}. 
-            I want you to review the CV sample in the image and comment
-            You should pay attention to some points when commenting:
-                - Check whether the uploaded image is a CV, if the uploaded image is not a CV, give a warning message saying "Please upload a CV sample".
-                - Since the needs of each department are different, evaluate the compatibility between the specified department and the uploaded CV.
-                - Minimum required experince is must be 5 years. The users'experince time is {deneyim_süresi}year. If it is less then {deneyim_süresi} years, give info about it.
-                - Give me the percentage of  match if the resume matches the job description.
-                - After percentage, highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.
-                - Final response should be in Markdown format, style is up to you, i count on you.
-                - Output must be in Turkish, other languages are not acceptable.
-
-                """
-
-            çalıştır_butonu = st.sidebar.button("Çalıştır", key="görsel_pdf_button")
-
-            if çalıştır_butonu:
-                response, prompt_token_count, response_token_count = get_gemini_response(prompt)
-
-                st.markdown(response.text)
-
-
-
-else:
-    user_image = st.sidebar.file_uploader("CV Fotoğrafı", type=["jpg", "png"], accept_multiple_files=False)
-    if user_image is not None:
-        st.sidebar.image(user_image, caption="Yüklenen Foto")
-
-        original_image_parts = [
-            {
-                "mime_type": "image/jpeg",
-                "data": user_image.read(),
-            }
-        ]
-
-        # prompt = original_image_parts[0],f"""
-        # Sen, tecrübeli bir İnsan Kaynakları Uzmanısın. {departman} birimine eleman alımı yapılacak. Görseldeki CV örneğini incelemeni ve yorum yapmanı istiyorum.
-        # Yorum yaparken bazı noktalara dikkat etmelisin:
-        #     - Yüklenen görselin bir CV olup olmadığını kontrol et, eğer yüklenen görsel bir CV değilse "Lütfen CV örneği yükleyin" şeklinde bir uyarı mesajı ver.
-        #     - Her departmanın ihtiyaçları farklı olduğu için, belirtilen departman ile yüklenen CV arasındaki uyumu değerlendir.
-        # """
-
-        prompt = f"""You are an experienced Human Resources Specialist. Staff will be recruited for {departman}. 
-        I want you to review the CV sample in the image and comment
-        You should pay attention to some points when commenting:
-            - Check whether the uploaded image is a CV, if the uploaded image is not a CV, give a warning message saying "Please upload a CV sample".
-            - Since the needs of each department are different, evaluate the compatibility between the specified department and the uploaded CV.
-            - Minimum required experince is must be 5 years. The users'experince time is {deneyim_süresi}year. If it is less then {deneyim_süresi} years, give info about it.
-            - Give me the percentage of  match if the resume matches the job description.
-            - After percentage, highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.
-            - Final response should be in Markdown format, style is up to you, i count on you.
-
-            """
-
-    çalıştır_butonu = st.sidebar.button("Çalıştır")
-
-    if çalıştır_butonu:
-        response, prompt_token_count, response_token_count = get_gemini_response(prompt)
-        st.write(f"Prompt token count: {prompt_token_count}")
-        st.write(f"Response token count: {response_token_count}")
-
-# st.write(f"Seçilen Departman: {departman}")
-
-
-#   - Minimum required experince is must be 5 years. The users'experince time is {deneyim_süresi}year. If it is less then {deneyim_süresi} years, terminate the evaluation and don't continue next steps.
+    response = get_gemini_response(prompt)
+    st.markdown(response)
