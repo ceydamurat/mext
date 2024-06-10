@@ -1,0 +1,16 @@
+streamlit
+numpy
+pandas
+matplotlib
+openpyxl
+PyPDF2
+docx2txt
+pdf2image
+seaborn
+python-dotenv
+streamlit-authenticator
+jupyter
+google-generativeai
+PyMuPDF
+pillow
+python-dot.env
